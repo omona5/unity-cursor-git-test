@@ -6,6 +6,7 @@ public class GameUI : MonoBehaviour
 {
     [Header("UI Elements")]
     public TextMeshProUGUI scoreText;
+    public ScoreDigitDisplay scoreDigitDisplay;  // 3자리 숫자 스프라이트 점수 (있으면 우선 사용)
     public TextMeshProUGUI gameOverText;
     public TextMeshProUGUI restartHintText;
     public GameObject gameOverPanel;
@@ -20,6 +21,10 @@ public class GameUI : MonoBehaviour
 
     public void UpdateScore(int score)
     {
+        if (scoreDigitDisplay != null)
+        {
+            scoreDigitDisplay.SetScore(score);
+        }
         if (scoreText != null)
         {
             scoreText.text = "점수: " + score;

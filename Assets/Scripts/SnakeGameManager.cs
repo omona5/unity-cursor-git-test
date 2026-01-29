@@ -6,10 +6,15 @@ public class SnakeGameManager : MonoBehaviour
     public static SnakeGameManager Instance { get; private set; }
 
     [Header("Game Settings")]
-    public float gameSpeed = 0.2f; // 이동 간격 (초)
+    [Tooltip("기본 이동 간격(초). 작을수록 빠름. 점수 오를수록 이 값이 줄어듦")]
+    public float baseMoveInterval = 0.2f;
+    [Tooltip("점수 1당 줄어드는 간격(초). 0.01 = 10점에 0.1초 감소")]
+    public float moveIntervalDecreasePerScore = 0.01f;
+    [Tooltip("최소 이동 간격(초). 이보다 빨라지지 않음")]
+    public float minMoveInterval = 0.05f;
     public int gridSize = 20; // 그리드 크기
-    public Vector2 gameAreaMin = new Vector2(-5f, -6.5f); // 가로: -5~5 (양쪽 0.5 여유), 세로: 아래 0.5 여유 후 게임 공간 시작
-    public Vector2 gameAreaMax = new Vector2(5f, 3.5f);   // 가로: -5~5, 세로: 게임 공간 끝 (UI 공간 시작 전)
+    public Vector2 gameAreaMin = new Vector2(-5.5f, -7f); // 가로: -5~5 (양쪽 0.5 여유), 세로: 아래 0.5 여유 후 게임 공간 시작
+    public Vector2 gameAreaMax = new Vector2(5.5f, 4f);   // 가로: -5~5, 세로: 게임 공간 끝 (UI 공간 시작 전)
 
     [Header("Prefabs")]
     public GameObject snakeHeadPrefab;
@@ -18,6 +23,8 @@ public class SnakeGameManager : MonoBehaviour
 
     [Header("UI")]
     public GameUI gameUI;
+    [Tooltip("3자리 점수 스프라이트. 비어 있으면 GameUI의 scoreDigitDisplay 사용")]
+    public ScoreDigitDisplay scoreDigitDisplay;
 
     private SnakeController snakeHead;
     private List<SnakeSegment> snakeSegments = new List<SnakeSegment>();
@@ -47,10 +54,13 @@ public class SnakeGameManager : MonoBehaviour
     {
         if (isGameOver) return;
 
+        // 점수에 따라 이동 간격 감소 (높은 점수 = 더 빠름)
+        float interval = Mathf.Max(minMoveInterval, baseMoveInterval - score * moveIntervalDecreasePerScore);
+
         moveTimer += Time.deltaTime;
-        if (moveTimer >= gameSpeed)
+        if (moveTimer >= interval)
         {
-            moveTimer = 0f;
+            moveTimer -= interval;
             MoveSnake();
         }
     }
@@ -78,11 +88,9 @@ public class SnakeGameManager : MonoBehaviour
         SpawnFood();
 
         // UI 업데이트
+        RefreshScoreDisplay();
         if (gameUI != null)
-        {
-            gameUI.UpdateScore(score);
             gameUI.HideGameOver();
-        }
     }
 
     private void MoveSnake()
@@ -115,13 +123,17 @@ public class SnakeGameManager : MonoBehaviour
 
         // 스네이크 이동
         snakeHead.Move();
-        
-        // 세그먼트들 이동
+
+        // 세그먼트들 이동 + 방향에 맞춰 회전
+        Vector2 frontPos = snakeHead.transform.position;  // 앞쪽(헤드) 위치
         Vector2 previousPos = currentHeadPos;
         foreach (var segment in snakeSegments)
         {
             Vector2 segmentPos = segment.transform.position;
+            Vector2 segDir = frontPos - previousPos;
             segment.MoveTo(previousPos);
+            segment.SetDirection(segDir);
+            frontPos = previousPos;
             previousPos = segmentPos;
         }
     }
@@ -139,10 +151,17 @@ public class SnakeGameManager : MonoBehaviour
         SpawnFood();
 
         // UI 업데이트
+        RefreshScoreDisplay();
+    }
+
+    private void RefreshScoreDisplay()
+    {
         if (gameUI != null)
-        {
             gameUI.UpdateScore(score);
-        }
+        // ScoreDigitDisplay 직접 갱신 (GameUI에 연결 안 했을 때도 동작)
+        var display = scoreDigitDisplay != null ? scoreDigitDisplay : (gameUI != null ? gameUI.scoreDigitDisplay : null);
+        if (display != null)
+            display.SetScore(score);
     }
 
     private void AddSegment()
@@ -164,29 +183,28 @@ public class SnakeGameManager : MonoBehaviour
 
     private void SpawnFood()
     {
-        Vector2 foodPos;
-        int attempts = 0;
-        do
-        {
-            // 게임 영역 내에서 정수 좌표로 생성 (격자에 맞춤)
-            // gameAreaMin과 gameAreaMax는 경계값이므로, 실제 생성 가능한 정수 범위 계산
-            // 예: -5.5 ~ 5.5 → 정수 -5 ~ 5
-            int minX = Mathf.CeilToInt(gameAreaMin.x);
-            int maxX = Mathf.FloorToInt(gameAreaMax.x);
-            int minY = Mathf.CeilToInt(gameAreaMin.y);
-            int maxY = Mathf.FloorToInt(gameAreaMax.y);
-            
-            int x = Random.Range(minX, maxX + 1);
-            int y = Random.Range(minY, maxY + 1);
-            // 스네이크가 (0, 0.5)에서 시작하므로 음식도 0.5 오프셋 적용
-            foodPos = new Vector2(x, y + 0.5f);
-            attempts++;
-        } while (IsSnakePosition(foodPos) && attempts < 100);
+        int minX = Mathf.CeilToInt(gameAreaMin.x);
+        int maxX = Mathf.FloorToInt(gameAreaMax.x);
+        int minY = Mathf.CeilToInt(gameAreaMin.y);
+        int maxY = Mathf.FloorToInt(gameAreaMax.y - 0.5f);
 
-        if (foodPrefab != null)
+        // 스네이크(헤드+세그먼트)가 없는 칸만 모은 뒤 그중에서만 랜덤 선택
+        var emptyPositions = new List<Vector2>();
+        for (int x = minX; x <= maxX; x++)
         {
-            currentFood = Instantiate(foodPrefab, foodPos, Quaternion.identity);
+            for (int y = minY; y <= maxY; y++)
+            {
+                Vector2 pos = new Vector2(x, y + 0.5f);
+                if (!IsSnakePosition(pos))
+                    emptyPositions.Add(pos);
+            }
         }
+
+        if (emptyPositions.Count == 0 || foodPrefab == null)
+            return;
+
+        Vector2 foodPos = emptyPositions[Random.Range(0, emptyPositions.Count)];
+        currentFood = Instantiate(foodPrefab, foodPos, Quaternion.identity);
     }
 
     private bool IsSnakePosition(Vector2 position)

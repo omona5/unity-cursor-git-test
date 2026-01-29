@@ -10,6 +10,7 @@ public class SnakeController : MonoBehaviour
     {
         direction = startDirection;
         nextDirection = startDirection;
+        ApplyRotation();
     }
 
     private void Update()
@@ -45,6 +46,16 @@ public class SnakeController : MonoBehaviour
     {
         direction = nextDirection;
         transform.position += (Vector3)direction;
+        ApplyRotation();
+    }
+
+    /// <summary>
+    /// 이동 방향에 맞춰 스프라이트 Z 회전 (헤드 스프라이트 기준으로 시계 방향 90° 보정)
+    /// </summary>
+    private void ApplyRotation()
+    {
+        float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f;
+        transform.eulerAngles = new Vector3(0f, 0f, angle);
     }
 
     public Vector2 GetNextPosition()
