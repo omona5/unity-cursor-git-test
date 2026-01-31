@@ -63,3 +63,6 @@ __pycache__/
 
 # Cursor debug logs
 .cursor/debug.log
+
+# GitHub Pages: docs/ 안의 WebGL 빌드는 커밋 (docs/Build 제외 방지)
+!/docs/Build/
