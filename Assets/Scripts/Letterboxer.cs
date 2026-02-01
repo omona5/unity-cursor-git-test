@@ -1,23 +1,29 @@
 using UnityEngine;
 
 /// <summary>
-/// 지정한 비율을 유지하며 화면에 레터박스/필러박스를 적용합니다.
-/// Main Camera에 붙이고, UI Canvas는 "Screen Space - Camera" + 이 카메라로 두면 UI도 같은 영역 안에 들어갑니다.
+/// 지정한 비율(게임 영역 = background.png 비율)을 유지하며 레터박스/필러박스를 적용합니다.
+/// 모든 게임·UI는 이 영역 안에만 그려지고, 밖은 막대로 채워집니다.
+/// Main Camera에 붙이고, UI Canvas는 "Screen Space - Camera" + 이 카메라로 두세요.
 /// </summary>
 [RequireComponent(typeof(Camera))]
 public class Letterboxer : MonoBehaviour
 {
-    [Header("Design Aspect")]
-    [Tooltip("기준 비율 (가로/세로). 1=정사각형, 16/9=가로로 넓은 화면")]
-    [SerializeField] private float designAspectWidth = 11f;
-    [SerializeField] private float designAspectHeight = 11f;
+    [Header("Design Aspect (게임 영역 = 월드 12×15 유닛 비율)")]
+    [Tooltip("기준 비율 가로·세로. 12:15 = 월드 12×15 유닛, 이 안에서만 게임이 진행됩니다")]
+    [SerializeField] private float designAspectWidth = 12f;
+    [SerializeField] private float designAspectHeight = 15f;
 
     [Header("Bar Color")]
     [Tooltip("레터박스/필러박스 색 (화면 밖 영역)")]
-    [SerializeField] private Color barColor = Color.black;
+    [SerializeField] private Color barColor = Color.red;
+
+    [Header("Debug Log")]
+    [Tooltip("1초마다 레터박스/필러박스 모드와 비율을 콘솔에 출력")]
+    [SerializeField] private bool logEverySecond = true;
 
     private Camera _camera;
     private Camera _clearCamera; // 전체 화면을 barColor로 채우는 카메라
+    private float _logTimer;
 
     private void Awake()
     {
@@ -40,6 +46,17 @@ public class Letterboxer : MonoBehaviour
     private void Start()
     {
         ApplyLetterbox();
+    }
+
+    private void Update()
+    {
+        if (!logEverySecond) return;
+        _logTimer += Time.deltaTime;
+        if (_logTimer >= 1f)
+        {
+            _logTimer -= 1f;
+            LogLetterboxState();
+        }
     }
 
     private void OnPreCull()
@@ -73,5 +90,14 @@ public class Letterboxer : MonoBehaviour
         }
 
         _camera.rect = new Rect(x, y, w, h);
+    }
+
+    private void LogLetterboxState()
+    {
+        float designAspect = designAspectWidth / designAspectHeight;
+        float screenAspect = (float)Screen.width / Screen.height;
+        bool isPillarbox = screenAspect > designAspect;
+        string mode = isPillarbox ? "필러박스 (좌/우 막대)" : "레터박스 (위/아래 막대)";
+        Debug.Log($"[Letterboxer] {mode} | designAspect={designAspect:F4} ({designAspectWidth}:{designAspectHeight}) | screenAspect={screenAspect:F4} | resolution={Screen.width}x{Screen.height} | rect={_camera.rect}");
     }
 }
