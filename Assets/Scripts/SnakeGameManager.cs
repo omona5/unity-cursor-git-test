@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 using System.Collections.Generic;
 
 public class SnakeGameManager : MonoBehaviour
@@ -31,6 +32,7 @@ public class SnakeGameManager : MonoBehaviour
     private GameObject currentFood;
     private int score = 0;
     private bool isGameOver = false;
+    private bool isPlaying = false;  // false = 대기(3칸 뱀만 보임), true = 이동 중
     private float moveTimer = 0f;
 
     private void Awake()
@@ -47,12 +49,31 @@ public class SnakeGameManager : MonoBehaviour
 
     private void Start()
     {
-        StartGame();
+        ResetToIdle();
     }
 
     private void Update()
     {
-        if (isGameOver) return;
+        var keyboard = Keyboard.current;
+        if (keyboard != null)
+        {
+            // R 키: 리셋 (대기 상태로 되돌림)
+            if (keyboard.rKey.wasPressedThisFrame)
+            {
+                ResetGame();
+                return;
+            }
+
+            // 대기 상태에서 스페이스/엔터: 시작하기
+            if (!isPlaying && !isGameOver && (keyboard.spaceKey.wasPressedThisFrame || keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame))
+            {
+                StartPlay();
+                return;
+            }
+        }
+
+        // 대기 상태이거나 게임 오버면 이동하지 않음
+        if (!isPlaying || isGameOver) return;
 
         // 점수에 따라 이동 간격 감소 (높은 점수 = 더 빠름)
         float interval = Mathf.Max(minMoveInterval, baseMoveInterval - score * moveIntervalDecreasePerScore);
@@ -65,32 +86,46 @@ public class SnakeGameManager : MonoBehaviour
         }
     }
 
-    public void StartGame()
+    /// <summary>
+    /// 대기 상태로 설정. 3칸 뱀만 보이고 움직이지 않음. "시작하기"를 눌러야 게임 시작.
+    /// </summary>
+    public void ResetToIdle()
     {
         isGameOver = false;
+        isPlaying = false;
         score = 0;
         moveTimer = 0f;
 
-        // 기존 오브젝트 정리
         ClearGame();
 
-        // 스네이크 헤드 생성 (아래쪽 0.5유닛 여유를 위해 y=0.5에서 시작)
         Vector3 startPos = new Vector3(0f, 0.5f, 0f);
         GameObject headObj = Instantiate(snakeHeadPrefab, startPos, Quaternion.identity);
         snakeHead = headObj.GetComponent<SnakeController>();
         snakeHead.Initialize(Vector2.right);
 
-        // 초기 세그먼트 추가
         AddSegment();
         AddSegment();
 
-        // 음식 생성
         SpawnFood();
 
-        // UI 업데이트
         RefreshScoreDisplay();
         if (gameUI != null)
+        {
             gameUI.HideGameOver();
+            gameUI.ShowStartState();
+        }
+    }
+
+    /// <summary>
+    /// "시작하기" 버튼으로 호출. 대기 상태에서만 유효하며, 뱀 이동을 시작함.
+    /// </summary>
+    public void StartPlay()
+    {
+        if (isGameOver || snakeHead == null) return;
+        isPlaying = true;
+        moveTimer = 0f;
+        if (gameUI != null)
+            gameUI.SetStartButtonInteractable(false); // 게임 중에는 시작 버튼 비활성화
     }
 
     private void MoveSnake()
@@ -166,14 +201,24 @@ public class SnakeGameManager : MonoBehaviour
 
     private void AddSegment()
     {
-        Vector2 spawnPos = Vector2.zero;
+        Vector2 spawnPos;
         if (snakeSegments.Count > 0)
         {
-            spawnPos = snakeSegments[snakeSegments.Count - 1].transform.position;
+            // 꼬리 한 칸 뒤에 생성 (기존: 꼬리와 같은 위치라 겹침 → 2칸만 보이던 문제 수정)
+            Vector2 tailPos = snakeSegments[snakeSegments.Count - 1].transform.position;
+            Vector2 inFrontPos = snakeSegments.Count >= 2
+                ? (Vector2)snakeSegments[snakeSegments.Count - 2].transform.position
+                : (Vector2)snakeHead.transform.position;
+            Vector2 dirToBody = (inFrontPos - tailPos).normalized;
+            spawnPos = tailPos - dirToBody;
         }
         else if (snakeHead != null)
         {
             spawnPos = (Vector2)snakeHead.transform.position - snakeHead.GetDirection();
+        }
+        else
+        {
+            spawnPos = Vector2.zero;
         }
 
         GameObject segmentObj = Instantiate(snakeSegmentPrefab, spawnPos, Quaternion.identity);
@@ -259,13 +304,29 @@ public class SnakeGameManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// "리셋" 버튼으로 호출. 대기 상태(3칸 뱀)로 되돌림. 다시 "시작하기"를 눌러야 시작.
+    /// </summary>
+    public void ResetGame()
+    {
+        ResetToIdle();
+    }
+
+    /// <summary>
+    /// 이전 호환용. 리셋과 동일하게 대기 상태로 되돌림.
+    /// </summary>
     public void RestartGame()
     {
-        StartGame();
+        ResetGame();
     }
 
     public bool IsGameOver()
     {
         return isGameOver;
+    }
+
+    public bool IsPlaying()
+    {
+        return isPlaying;
     }
 }
