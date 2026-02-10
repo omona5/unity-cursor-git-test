@@ -21,6 +21,8 @@ public class GameUI : MonoBehaviour
     {
         if (gameOverPanel != null)
             gameOverPanel.SetActive(false);
+        if (gameOverText != null)
+            gameOverText.gameObject.SetActive(false);
         ShowStartState();
 
         // 시작하기 버튼 클릭을 코드에서도 연결 (Inspector에서 안 넣었을 때 대비)
@@ -29,6 +31,12 @@ public class GameUI : MonoBehaviour
             var btn = startButton.GetComponent<Button>();
             if (btn != null)
                 btn.onClick.AddListener(OnStartClicked);
+        }
+
+        // 리셋 버튼도 코드에서 한 번 더 연결 (OnClick 비어 있어도 동작하도록)
+        if (resetButton != null)
+        {
+            resetButton.onClick.AddListener(OnResetClicked);
         }
     }
 
@@ -46,19 +54,15 @@ public class GameUI : MonoBehaviour
 
     public void ShowGameOver(int finalScore)
     {
+        // 패널은 선택 사항. 연결되어 있으면 함께 표시.
         if (gameOverPanel != null)
-        {
             gameOverPanel.SetActive(true);
-        }
 
+        // 게임 오버 시 "Game Over!" 텍스트를 활성화
         if (gameOverText != null)
         {
-            gameOverText.text = "게임 오버!\n최종 점수: " + finalScore;
-        }
-
-        if (restartHintText != null)
-        {
-            restartHintText.text = "리셋을 누른 뒤 시작하기를 눌러 재시작";
+            gameOverText.text = "Game Over!";
+            gameOverText.gameObject.SetActive(true);
         }
     }
 
@@ -66,6 +70,9 @@ public class GameUI : MonoBehaviour
     {
         if (gameOverPanel != null)
             gameOverPanel.SetActive(false);
+
+        if (gameOverText != null)
+            gameOverText.gameObject.SetActive(false);
     }
 
     /// <summary> 대기 상태 UI: 시작하기 버튼 보이기 + 활성화 </summary>
